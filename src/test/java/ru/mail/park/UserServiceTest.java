@@ -102,5 +102,9 @@ public class UserServiceTest extends Assert {
 
         assertEquals(result.get(0).getId(), addedUser2.getId());
         assertEquals(result.get(1).getId(), addedUser.getId());
+
+        final Integer realCount = userService.countUsers();
+        final Integer expecterCount = 2;
+        assertEquals(expecterCount, realCount);
     }
 }

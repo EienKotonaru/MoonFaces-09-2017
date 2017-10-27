@@ -13,10 +13,7 @@ import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.request.MockMvcRequestBuilders;
 import org.springframework.transaction.annotation.Transactional;
 import ru.mail.park.models.User;
-import ru.mail.park.requests.SettingsRequest;
-import ru.mail.park.requests.SigninRequest;
-import ru.mail.park.requests.SignupRequest;
-import ru.mail.park.requests.Utilities;
+import ru.mail.park.requests.*;
 import ru.mail.park.services.UserServiceImpl;
 
 import static org.junit.Assert.assertEquals;
@@ -43,7 +40,7 @@ public class UserControllerTest {
     @Test
     public void testScoreboard() throws Exception {
         //NOT_FOUND
-        mockMvc.perform(MockMvcRequestBuilders.get("/restapi/scoreboard"))
+        mockMvc.perform(MockMvcRequestBuilders.get("/restapi/scoreboard?page=3"))
                 .andExpect(status().is4xxClientError());
         //SignUp
         mockMvc.perform(MockMvcRequestBuilders.post("/restapi/signup")
@@ -64,7 +61,8 @@ public class UserControllerTest {
         assertNotNull(user2);
 
         //OK_RESPONSE
-        mockMvc.perform(MockMvcRequestBuilders.get("/restapi/scoreboard"))
+        mockMvc.perform(MockMvcRequestBuilders.get("/restapi/scoreboard?page=0")
+                .header("content-type", "application/json"))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.users[0].login").value("login"))
                 .andExpect(jsonPath("$.users[1].login").value("login2"));
