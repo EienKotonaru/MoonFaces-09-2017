@@ -20,7 +20,12 @@ import javax.servlet.http.HttpSession;
 
 
 @RestController
-@CrossOrigin(origins = {"http://bacterio.herokuapp.com", "https://bacterio.herokuapp.com", "http://localhost:3000", "http://127.0.0.1:3000"})
+@CrossOrigin(origins = {"http://bacterio.herokuapp.com",
+        "https://bacterio.herokuapp.com",
+        "http://localhost:3000",
+        "http://127.0.0.1:3000",
+        "http://moonfaces.herokuapp.com",
+        "https://moonfaces.herokuapp.com"})
 public class UserController {
 
     private static final FailOrSuccessResponse OK_RESPONSE = new FailOrSuccessResponse(false, null);
@@ -28,8 +33,6 @@ public class UserController {
     private final UserService userService;
 
     private static final int SCOREBOARD_LIMIT = 5;
-
-    private static final int SCOREBOARD_OFFSET = 0;
 
 
     @Autowired
@@ -171,10 +174,18 @@ public class UserController {
     }
 
     @GetMapping(path = "/restapi/scoreboard")
-    public ResponseEntity<?> topPlayers() {
-        final List<User> topPlayers = userService.getTopPlayers(SCOREBOARD_LIMIT, SCOREBOARD_OFFSET);
+    public ResponseEntity<?> topPlayers(Integer page) {
+        final Integer count = userService.countUsers();
+        Integer pages = 0;
+        if (count % SCOREBOARD_LIMIT == 0) {
+            pages = count / SCOREBOARD_LIMIT;
+        } else {
+            pages = count / SCOREBOARD_LIMIT + 1;
+        }
+
+        final List<User> topPlayers = userService.getTopPlayers(SCOREBOARD_LIMIT, page * SCOREBOARD_LIMIT);
         if (!topPlayers.isEmpty()) {
-            return ResponseEntity.ok(new LeaderboardResponse(topPlayers));
+            return ResponseEntity.ok(new LeaderboardResponse(topPlayers, pages));
         } else {
             return ResponseEntity.status(HttpStatus.NOT_FOUND)
                     .body(new FailOrSuccessResponse(true, "Users list is empty! "));
@@ -229,11 +240,14 @@ public class UserController {
         }
     }
 
-    public class LeaderboardResponse {
+    public static final class LeaderboardResponse {
         private final List<UserResponse> users;
 
+        private final Integer pages;
+
         @JsonCreator
-        public LeaderboardResponse(List<User> users) {
+        public LeaderboardResponse(List<User> users, Integer pages) {
+            this.pages = pages;
             this.users = users
                     .stream()
                     .map(UserResponse::new)
@@ -243,6 +257,11 @@ public class UserController {
         @SuppressWarnings("unused")
         public List<UserResponse> getUsers() {
             return users;
+        }
+
+        @SuppressWarnings("unused")
+        public Integer getPages() {
+            return pages;
         }
     }
 }
