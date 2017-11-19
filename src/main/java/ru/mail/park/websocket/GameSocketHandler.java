@@ -3,7 +3,6 @@ package ru.mail.park.websocket;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-import org.springframework.util.StringUtils;
 import org.springframework.web.socket.CloseStatus;
 import org.springframework.web.socket.TextMessage;
 import org.springframework.web.socket.WebSocketSession;
@@ -52,15 +51,8 @@ public class GameSocketHandler extends TextWebSocketHandler {
     @Override
     public void afterConnectionEstablished(WebSocketSession session) throws Exception {
         LOGGER.info(String.format("New WS connection %s", session.getRemoteAddress()));
-        final String login = (String) session.getAttributes().get("login");
-        if (!StringUtils.isEmpty(login)) {
-            SESSIONS.add(session);
-            InitQueue.addConnection(session);
-            LOGGER.info(String.format("Login success : %s", login));
-        } else {
-            LOGGER.warn("Unauthorized access");
-            session.close();
-        }
+        LOGGER.info(session.toString());
+        LOGGER.info(session.getAttributes().get("id").toString());
     }
 
     @Override

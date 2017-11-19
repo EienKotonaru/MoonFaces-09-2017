@@ -27,6 +27,6 @@ public final class Game {
     }
 
     private void start() {
-
+        LOGGER.info("game started");
     }
 }
