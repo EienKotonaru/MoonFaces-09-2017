@@ -52,7 +52,7 @@ public class GameSocketHandler extends TextWebSocketHandler {
     public void afterConnectionEstablished(WebSocketSession session) throws Exception {
         LOGGER.info(String.format("New WS connection %s", session.getRemoteAddress()));
         LOGGER.info(session.toString());
-        LOGGER.info(session.getAttributes().get("id").toString());
+        LOGGER.info(session.getAttributes().toString());
     }
 
     @Override
