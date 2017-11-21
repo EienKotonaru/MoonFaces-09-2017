@@ -1,65 +1,89 @@
 package ru.mail.park.websocket;
 
-
+import com.fasterxml.jackson.databind.ObjectMapper;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.web.socket.CloseStatus;
 import org.springframework.web.socket.TextMessage;
 import org.springframework.web.socket.WebSocketSession;
 import org.springframework.web.socket.handler.TextWebSocketHandler;
+import ru.mail.park.models.User;
+import ru.mail.park.services.UserService;
 
-import java.util.*;
-import java.util.concurrent.TimeUnit;
-import java.util.function.Consumer;
+import javax.naming.AuthenticationException;
+import java.io.IOException;
 
 public class GameSocketHandler extends TextWebSocketHandler {
-
-    private static final Integer TIMEOUT = 5;
-    private static final Set<WebSocketSession> SESSIONS = Collections.synchronizedSet(new HashSet<WebSocketSession>());
-    private static final Map<WebSocketSession, Consumer<String>> LISTENERS = Collections.synchronizedMap(new HashMap<>());
     private static final Logger LOGGER = LoggerFactory.getLogger(GameSocketHandler.class);
 
-    static {
-        new Thread(() -> {
-            try {
-                while (true) {
-                    TimeUnit.MINUTES.sleep(TIMEOUT);
-                    for (WebSocketSession wss : SESSIONS) {
-                        if (!wss.isOpen()) {
-                            SESSIONS.remove(wss);
-                            if (LISTENERS.containsKey(wss)) {
-                                LISTENERS.remove(wss);
-                            }
-                        }
-                    }
-                }
-            } catch (InterruptedException e) {
-                LOGGER.warn("WS session clearer is interrupted", e);
-            }
-        }, "WS session clearer").start();
-    }
+    private final UserService userService;
+    private final MessageHandlerContainer messageHandlerContainer;
+    private final RemotePointService remotePointService;
 
-    public static void addHandleTextMessageListener(Consumer<String> listener, WebSocketSession webSocketSession) {
-        LISTENERS.put(webSocketSession, listener);
+    private final ObjectMapper objectMapper = new ObjectMapper();
+
+
+    public GameSocketHandler(MessageHandlerContainer messageHandlerContainer,
+                             UserService userService,
+                             RemotePointService remotePointService) {
+        this.messageHandlerContainer = messageHandlerContainer;
+        this.userService = userService;
+        this.remotePointService = remotePointService;
     }
 
     @Override
-    public void afterConnectionClosed(WebSocketSession session, CloseStatus status) throws Exception {
-        SESSIONS.remove(session);
-    }
-
-    @Override
-    public void afterConnectionEstablished(WebSocketSession session) throws Exception {
-        LOGGER.info(String.format("New WS connection %s", session.getRemoteAddress()));
-        LOGGER.info(session.toString());
-        LOGGER.info(session.getAttributes().toString());
-    }
-
-    @Override
-    protected void handleTextMessage(WebSocketSession session, TextMessage message) throws Exception {
-        LOGGER.info(String.format("New message\n%s", message.getPayload()));
-        if (LISTENERS.containsKey(session)) {
-            LISTENERS.get(session).accept(message.getPayload());
+    public void afterConnectionEstablished(WebSocketSession webSocketSession) throws AuthenticationException {
+        final Integer id = (Integer) webSocketSession.getAttributes().get("id");
+        if (id == null ||userService.getUser(id) == null) {
+            throw new AuthenticationException("Only authenticated users allowed to play a game");
         }
+        remotePointService.registerUser(id, webSocketSession);
+    }
+
+    @Override
+    protected void handleTextMessage(WebSocketSession webSocketSession, TextMessage message) throws AuthenticationException {
+        final Integer id = (Integer) webSocketSession.getAttributes().get("id");
+        final User user;
+        if (id == null || (user = userService.getUser(id)) == null) {
+            throw new AuthenticationException("Only authenticated users allowed to play a game");
+        }
+        handleMessage(user, message);
+    }
+
+    @SuppressWarnings("OverlyBroadCatchBlock")
+    private void handleMessage(User userProfile, TextMessage text) {
+
+        final Message message;
+        try {
+            message = objectMapper.readValue(text.getPayload(), Message.class);
+        } catch (IOException ex) {
+            LOGGER.error("wrong json format at ping response", ex);
+            return;
+        }
+        try {
+            messageHandlerContainer.handle(message, userProfile.getId());
+        } catch (HandleException e) {
+            LOGGER.error("Can't handle message of type " + message.getType() + " with content: " + message.getContent(), e);
+        }
+    }
+
+    @Override
+    public void handleTransportError(WebSocketSession webSocketSession, Throwable throwable) throws Exception {
+        LOGGER.warn("Websocket transport problem", throwable);
+    }
+
+    @Override
+    public void afterConnectionClosed(WebSocketSession webSocketSession, CloseStatus closeStatus) throws Exception {
+        final Integer userId = (Integer) webSocketSession.getAttributes().get("userId");
+        if (userId == null) {
+            LOGGER.warn("User disconnected but his session was not found (closeStatus=" + closeStatus + ')');
+            return;
+        }
+        remotePointService.removeUser(userId);
+    }
+
+    @Override
+    public boolean supportsPartialMessages() {
+        return false;
     }
 }
